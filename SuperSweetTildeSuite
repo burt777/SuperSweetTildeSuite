@@ -1,0 +1,174 @@
+#!/bin/bash
+# Note: Bash, for the substitution {//}
+
+# Respond to arguments that trigger functionality:
+case $1 in
+    --keyboard-shortcuts)
+        # Start the keyboard manager, send to background process so sleep and 
+        # keystroke happen right after keyboard-settings startup:
+        (xfce4-keyboard-settings & ) && sleep .5 && xdotool key "alt+p"
+        exit
+            ;;
+    --get_filemanager)
+        # Thunar doesn't use full path in title, so this doesn't work smootly yet:
+        FOLDERTOSHOW=$2
+        echo getting $FOLDERTOSHOW for you
+        WINEXISTS=$(wmctrl -l | grep "Xfe $FOLDERTOSHOW")
+        if [[ $WINEXISTS ]]; then
+            echo Activating "$FOLDERTOSHOW"
+            wmctrl -a "Xfe - $FOLDERTOSHOW"
+        else
+            echo running xfe $FOLDERTOSHOW
+            xfe $FOLDERTOSHOW &
+        fi            
+        exit
+            ;;
+    --get_window)
+        WINTOGET=$2
+        CMDTORUN=$3
+        WINTOGETPID=$(wmctrl -l | grep "$WINTOGET" | cut -f1 -d\ )
+        if [[ $WINTOGETPID ]]; then
+            echo Activating "$WINTOGET"
+            wmctrl -a "$WINTOGET"
+        else
+            echo running $CMDTORUN
+            $CMDTORUN &
+        fi            
+        exit
+            ;;
+    --new_command)
+        echo new command == $2
+        exit
+            ;;
+    *)
+esac
+
+
+
+
+now=$(date +"%T")
+notify-send "Reloading $now"
+
+EDITOR=/usr/bin/subl
+FILEMANAGER=/usr/bin/xfe
+ME=$(readlink -e -- "$0")
+
+# reset keyboard settings 
+setxkbmap
+
+# Free up the mod3 flag from all keys it may be associated with:
+xmodmap -e "clear mod3"
+xmodmap -e "clear mod4"
+
+# Add Hyper_L to the grave key (the ` and ~ upper left, left of 1)
+xmodmap -e "keycode 49 = Hyper_L asciitilde grave asciitilde"
+
+# You need a grave key somewhere else (!!!) so, bind it to a non-existing key like 250:
+xmodmap -e "keycode 250 = grave"
+
+# Restore Mod4 but without Hyper_L (which was at location 4)
+xmodmap -e "add mod4 = Super_L Super_R Super_L"
+
+# This does generate an error, but it works for me now:
+xmodmap -e "add mod3 = Hyper_L"
+
+### echo close all xfconfd
+# killall -v xfconfd 
+# echo starting xfconfd to background
+# /usr/lib/x86_64-linux-gnu/xfce4/xfconf/xfconfd &
+
+## starting xcape to produce a grave after keypress
+killall xcape
+# The -s is a feature i added to xcape to disable when Shift is held down. This prevents every ~ to be followed by a `.
+xcape -s -t5000 -e "#49=grave;Super_L=Control_L|Escape" &
+
+now=$(date +"%T")
+notify-send "Reload $now"
+
+grep '^shortcut' $ME | while read a; do
+    SHORTCUTKEY=$(echo $a | cut -d\; -f 2 | xargs) # xargs does the trimming! 
+    SHORTCUTCOMMAND=$(echo $a | cut -d\; -f 3)
+
+    # variables used in shortcuts:
+    SHORTCUTCOMMAND=${SHORTCUTCOMMAND/\$ME/$ME}
+    SHORTCUTCOMMAND=${SHORTCUTCOMMAND/\$EDITOR/$EDITOR}
+    SHORTCUTCOMMAND=${SHORTCUTCOMMAND/\$FILEMANAGER/$FILEMANAGER}
+
+    echo $SHORTCUTKEY -- $SHORTCUTCOMMAND
+
+    /usr/bin/xfconf-query --create --type string \
+                          --channel xfce4-keyboard-shortcuts \
+                          --property /commands/custom/$SHORTCUTKEY \
+                          --set "$SHORTCUTCOMMAND"
+done
+
+
+
+
+
+
+
+
+
+
+
+exit # *******************************************************************************************
+
+# Shortcut keys: 
+shortcut ; \<Hyper\>1 ; $ME ; # Reload
+shortcut ; \<Hyper\>2 ; $ME --hello_world ; # Run a function2
+shortcut ; \<Hyper\>7 ; $EDITOR /media/burt/TChunk/Projects/txt/Dreamlog/dreamlog.txt ; # Edit dream log
+shortcut ; \<Hyper\>equal ; $EDITOR $ME ; # Edit self
+
+# Locations:
+shortcut ; \<Hyper\>F1         ; $ME --get_filemanager /media/burt/SSD2_D/Portable/ ; 
+shortcut ; \<Hyper\>F2         ; $ME --get_filemanager /media/burt/TChunk/Projects/ ; 
+shortcut ; \<Hyper\>F3         ; $ME --get_filemanager /media/burt/ChunkF_x/BitTorrents/ ;
+shortcut ; \<Hyper\>F5         ; $ME --get_filemanager /home/burt/Music ;
+shortcut ; \<Hyper\>F9         ; $ME --get_filemanager \"/media/burt/ChunkF_x/Sync/L40_SD/Music/0 LearnTheseSongs/\";
+shortcut ; \<Hyper\>F11        ; $ME --get_filemanager /media/burt/ChunkF_x/Sync/L40_SD/ ;
+
+# WifiKeyboard/android typing
+shortcut ; \<Hyper\>period     ; $ME --get_window "WiFi Keyboard - QupZilla" "/usr/bin/qupzilla http://192.168.0.40:7777" 
+shortcut ; \<Hyper\>apostrophe ; /usr/bin/firefox http://192.168.0.12 ; # Doorbell
+
+#MouseMoving: 
+    # Normal
+shortcut ; \<Hyper\>Up    ; xdotool mousemove_relative -- 0 -100
+shortcut ; \<Hyper\>Down  ; xdotool mousemove_relative -- 0 100
+shortcut ; \<Hyper\>Left  ; xdotool mousemove_relative -- -100 0
+shortcut ; \<Hyper\>Right ; xdotool mousemove_relative -- 100 0
+
+    # Slow/Pixel
+shortcut ; \<Hyper\>\<Alt\>Up    ; xdotool mousemove_relative -- 0 -1
+shortcut ; \<Hyper\>\<Alt\>Down  ; xdotool mousemove_relative -- 0 1
+shortcut ; \<Hyper\>\<Alt\>Left  ; xdotool mousemove_relative -- -1 0
+shortcut ; \<Hyper\>\<Alt\>Right ; xdotool mousemove_relative -- 1 0
+
+    # Fast
+shortcut ; \<Hyper\>\<Primary\>Up    ; xdotool mousemove_relative -- 0 -500
+shortcut ; \<Hyper\>\<Primary\>Down  ; xdotool mousemove_relative -- 0 500
+shortcut ; \<Hyper\>\<Primary\>Left  ; xdotool mousemove_relative -- -1000 0
+shortcut ; \<Hyper\>\<Primary\>Right ; xdotool mousemove_relative -- 1000 0
+
+    # Click
+shortcut ; \<Hyper\>space ; xdotool click 1
+
+# Audacious
+shortcut ; \<Hyper\>w            ; /usr/bin/audacious
+shortcut ; \<Hyper\>KP_Multiply  ; /usr/bin/audacious -t
+shortcut ; \<Hyper\>KP_Divide    ; /usr/bin/audtool --playback-seek-relative -5
+shortcut ; \<Hyper\>KP_Subtract  ; /usr/bin/audtool --playback-seek-relative 5
+shortcut ; \<Hyper\>\<Primary\>KP_Divide    ; /usr/bin/audacious -r
+shortcut ; \<Hyper\>\<Primary\>KP_Subtract  ; /usr/bin/audacious -f
+
+shortcut ; \<Primary\>\<Shift\>F9 ; /home/burt/scripts/random_album.sh ; # Play random music
+
+shortcut ; \<Hyper\>k ; $ME --keyboard-shortcuts  ; # Keyboard shortcuts
+shortcut ; \<Hyper\>q ; /media/burt/SSD2_D/Portable/qBittorrent/qBittorrentPortable.exe ; # QBitTorrent
+shortcut ; \<Hyper\>n ; $EDITOR ; # Editor/text-file
+
+# Volume
+shortcut ; \<Hyper\>bracketleft  ; xdotool key XF86AudioLowerVolume 
+shortcut ; \<Hyper\>bracketright ; xdotool key XF86AudioRaiseVolume
+
